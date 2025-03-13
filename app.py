@@ -49,6 +49,9 @@ def main():
             num_images = len(image_names)
         case 4:
             sys.exit("Have a nice day!")
+        case _:
+            print("Wrong choice! Please try again")
+            main()
 
 
     print("Choose an augmentation method: ")
@@ -143,7 +146,12 @@ def main():
         
         case 10:
             sys.exit("Have a nice day!")
-
+            
+        case _:
+            print("Wrong choice! Please try again")
+            main()
+            
+    main()
     
 if __name__ == "__main__":
     while True:
