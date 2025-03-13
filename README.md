@@ -1,6 +1,6 @@
 # Augment_AI
 
-Project provides data augmentation app for machine learning and computer vision.
+Project provides data augmentation app for machine learning and computer vision. Augmentation was performed for the Google Cats and Dogs dataset.
 
 Project setup on Windows:
 
