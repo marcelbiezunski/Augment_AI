@@ -1,7 +1,7 @@
 from PIL import Image, ImageFile
 import os
 
-# Włączamy obsługę uszkodzonych obrazów
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def remove_corrupted_images(directory):
@@ -10,11 +10,11 @@ def remove_corrupted_images(directory):
             filepath = os.path.join(root, filename)
             try:
                 with Image.open(filepath) as img:
-                    img.verify()  # Sprawdzanie integralności obrazu
+                    img.verify()
             except (IOError, SyntaxError, Image.UnidentifiedImageError):
                 print(f"Usuwam uszkodzony plik: {filepath}")
                 os.remove(filepath)
 
-# Przykład użycia
+# example:
 remove_corrupted_images('petImages/train')
 remove_corrupted_images('petImages/validation')
