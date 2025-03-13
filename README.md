@@ -17,5 +17,5 @@ App.py is a Python-based application that allows users to perform custom data au
 AugmentLib.py is a dedicated library that contains all image transformations available in the appliaction.
 
 Clean.py removes corrupted files from the dataset.
-ClearAugment.py restores the dataset to its original state by deleting augmented images.
+ClearAugmen.py restores the dataset to its original state by deleting augmented images.
 
