@@ -2,17 +2,22 @@ import cv2
 import random
 import numpy as np
 from PIL import Image, ImageEnhance
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 import os
+from tqdm import tqdm
+import random
 
-def random_crop(img_path, min_size=(30, 30), max_size=(500, 500)):
-  image = cv2.imread(img_path)
-  if image is None:
-    # Handle loading error (e.g., print message, skip image)
-    print(f"Error loading image: {img_path}")
-    os.remove(img_path)
-    print(f"Usunięto plik: {img_path}")
-    return None  # Or raise an exception
-  # Load the image
+def get_image_names(folder):
+    image_names = []
+    for filename in os.listdir(folder):
+        if filename.endswith('.jpg') or filename.endswith('.png'):
+            image_names.append(filename)
+    return image_names
+
+
+def random_crop(img_path, min_size=(100, 100), max_size=(500, 500)):
   img = cv2.imread(img_path)
   h, w = img.shape[:2]
 
@@ -78,22 +83,16 @@ def random_brightness(img_path, factor = random.uniform(0.5,1.2)):
   return new_img
 
 def adjust_contrast(img_path, contrast_factor = random.uniform(0.25,1.75)):
-
     image = cv2.imread(img_path)
-
 
     lab_image = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
 
-
     l_channel, a_channel, b_channel = cv2.split(lab_image)
-
 
     clahe = cv2.createCLAHE(clipLimit=contrast_factor, tileGridSize=(8, 8))
     l_channel = clahe.apply(l_channel)
 
-
     adjusted_lab_image = cv2.merge([l_channel, a_channel, b_channel])
-
 
     adjusted_image = cv2.cvtColor(adjusted_lab_image, cv2.COLOR_LAB2BGR)
 
@@ -116,10 +115,6 @@ def add_gaussian_noise(image_path, mean=random.uniform(0,10), std=random.uniform
 
 def add_salt_and_pepper_noise_color(image_path, prob=0.25):
     image = cv2.imread(image_path)
-    if image is None:
-      # Handle loading error (e.g., print message, skip image)
-      print(f"Error loading image: {image_path}")
-      return None  # Or raise an exception
     output = np.copy(image)
     
     mask = np.random.choice([0, 1, 2], size=image.shape, p=[1-prob, prob/2, prob/2])
@@ -156,3 +151,92 @@ def perspective_transform(img_path, points):
     dst = cv2.warpPerspective(img, M, (w, h))
 
     return dst
+
+def autoencoder(img_path, num_images):
+  gpus = tf.config.experimental.list_physical_devices('GPU')
+  if gpus:
+      try:
+          tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+          logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+          print(f"Number of Logical GPUs: {len(logical_gpus)}")
+      except RuntimeError as e:
+          print(e)
+  else:
+      print("No GPUs available. Training on CPU.")
+
+  data_dir = img_path
+
+  train_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)
+
+  train_generator = train_datagen.flow_from_directory(
+      data_dir,
+      target_size=(128, 128),
+      batch_size=64,
+      class_mode='input',
+      subset='training',
+      shuffle=True)
+
+  val_generator = train_datagen.flow_from_directory(
+      data_dir,
+      target_size=(128, 128),
+      batch_size=64,
+      class_mode='input',
+      subset='validation',
+      shuffle=False)
+
+  def build_autoencoder(input_shape):
+      encoder_input = layers.Input(shape=input_shape)
+      x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(encoder_input)
+      x = layers.MaxPooling2D((2, 2), padding='same')(x)
+      x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+      x = layers.MaxPooling2D((2, 2), padding='same')(x)
+      encoded = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
+
+      x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(encoded)
+      x = layers.UpSampling2D((2, 2))(x)
+      x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(x)
+      x = layers.UpSampling2D((2, 2))(x)
+      decoded = layers.Conv2D(3, (3, 3), activation='sigmoid', padding='same')(x)
+
+      autoencoder = models.Model(encoder_input, decoded)
+      return autoencoder
+
+  autoencoder = build_autoencoder((128, 128, 3))
+  autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+  autoencoder.fit(
+      train_generator,
+      epochs=50,
+      validation_data=val_generator,
+      steps_per_epoch=len(train_generator),
+      validation_steps=len(val_generator)
+  )
+
+  output_dir = data_dir
+
+  processed_images = 0
+
+  for i in tqdm(range(len(train_generator))):
+      batch = train_generator[i][0]
+      batch_size = batch.shape[0]
+
+      if num_images - processed_images < batch_size:
+          indices_to_process = random.sample(range(batch_size), num_images - processed_images)
+      else:
+          indices_to_process = range(batch_size)
+      
+      print(f"Processing indices in batch {i}: {indices_to_process}")
+
+      for local_index in indices_to_process:
+          img = autoencoder.predict(batch[local_index:local_index+1])
+          img = np.squeeze(img)
+          img = (img * 255).astype(np.uint8)
+          img = array_to_img(img)
+          img.save(os.path.join(output_dir, f"generated_img_{i}_{local_index}.jpg"))
+          processed_images += 1
+
+          if processed_images >= num_images:
+              break
+
+      if processed_images >= num_images:
+          break
