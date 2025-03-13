@@ -78,23 +78,23 @@ def random_brightness(img_path, factor = random.uniform(0.5,1.2)):
   return new_img
 
 def adjust_contrast(img_path, contrast_factor = random.uniform(0.25,1.75)):
-  # Wczytaj obraz przy użyciu OpenCV
+
     image = cv2.imread(img_path)
 
-    # Konwersja obrazu do przestrzeni LAB
+
     lab_image = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
 
-    # Podział na kanały L, A, B
+
     l_channel, a_channel, b_channel = cv2.split(lab_image)
 
-    # Zastosowanie CLAHE na kanale L z regulowanym clipLimit
+
     clahe = cv2.createCLAHE(clipLimit=contrast_factor, tileGridSize=(8, 8))
     l_channel = clahe.apply(l_channel)
 
-    # Ponowne łączenie kanałów
+
     adjusted_lab_image = cv2.merge([l_channel, a_channel, b_channel])
 
-    # Konwersja obrazu z powrotem do przestrzeni barwnej BGR
+
     adjusted_image = cv2.cvtColor(adjusted_lab_image, cv2.COLOR_LAB2BGR)
 
     return adjusted_image
